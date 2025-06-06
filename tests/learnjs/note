@@ -1,0 +1,66 @@
+  test('Kiểm tra quá thời gian đăng ký - không cho tạo đơn', async ({ page }) => {
+  await page.goto('https://dormitory-staging.phx-smartuni.com/login');
+
+  // Đăng nhập
+  await page.fill('input[placeholder="Nhập tên đăng nhập"]', '21011228@st.phenikaa-uni.edu.vn');
+  await page.fill('input[placeholder="Nhập mật khẩu"]', '123456');
+  await page.click('button:has-text("Đăng nhập")');
+
+  // Vào menu "Đơn đăng ký"
+  await page.click('text=Đơn đăng ký');
+
+  const today = new Date();
+
+  const cards = await page.locator('div:has-text("Thời gian đăng ký")').elementHandles();
+
+  for (const card of cards) {
+    const parent = await card.evaluateHandle(el => el.closest('div'));
+
+    const timeText = await parent.evaluate(el => {
+      const timeLabel = Array.from(el.querySelectorAll('*'))
+        .find(e => e.textContent?.includes('Thời gian đăng ký'));
+      return timeLabel?.nextSibling?.textContent?.trim() || '';
+    });
+
+    if (!timeText) continue;
+
+    const [fromStr, toStr] = timeText.split('-').map(s => s.trim());
+    const from = parseDate(fromStr);
+    const to = parseDate(toStr);
+
+    if (today < from || today > to) {
+      // Đợt này không nằm trong thời gian đăng ký → click "Xem chi tiết"
+      const xemBtn = await parent.$('text=Xem chi tiết');
+      if (xemBtn) {
+        await xemBtn.click();
+
+        // ❌ Kiểm tra KHÔNG có nút "Tạo đơn"
+        const taoDonBtn = page.getByRole('button', { name: 'Tạo đơn' });
+        await expect(taoDonBtn).toBeHidden();
+
+        // Quay lại trang danh sách
+        await page.goBack();
+      }
+    }
+  }
+
+  function parseDate(str: string): Date {
+    const [d, m, y] = str.split('/').map(Number);
+    return new Date(y, m - 1, d);
+  }
+});
+
+
+  test('TL69 - Thêm mới tài liệu thành công', async ({ page }) => {
+    await page.goto('https://dormitory-staging.phx-smartuni.com/login');
+    const locator = page.locator('//input[@placeholder="Nhập tên đăng nhập"]');
+    await locator.fill('admin');
+    const locator1 = page.locator('//input[@placeholder="Nhập mật khẩu"]');
+    await locator1.fill('admin');
+    await page.click('//span[normalize-space(text())="Tài liệu"]');
+    await page.click('//button[normalize-space(.)="Thêm tài liệu"]');
+    const locator2 = page.locator('//input[@placeholder="Nhập tiêu đề"]');
+    await locator2.fill('tài liệu 1');
+    await page.click('//input[@placeholder="Chọn loại tài liệu"]');
+    await page.click('//li[text()="Nội quy"]');
+  });
